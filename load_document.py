@@ -3,7 +3,7 @@ from langchain_community.document_loaders import PyPDFLoader
 
 load_dotenv()
 
-loader = PyPDFLoader("MolsonCoors.pdf")
+loader = PyPDFLoader("molsoncoors.pdf")
 pages = loader.load()
 
 print(f"Total pages loaded: {len(pages)}")
