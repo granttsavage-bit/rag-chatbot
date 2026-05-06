@@ -52,11 +52,14 @@ st.caption("Ask any question about the Molson Coors 2023 Annual Report")
 @st.cache_resource
 def load_vectorstore():
     embeddings = OpenAIEmbeddings(api_key=os.getenv("OPENAI_API_KEY"))
+    
+    pdf_path = os.path.join(os.path.dirname(__file__), "molsoncoors.pdf")
+    chroma_path = os.path.join(os.path.dirname(__file__), "chroma_db")
 
-    if not os.path.exists("./chroma_db"):
+    if not os.path.exists(chroma_path):
         st.info("Building knowledge base for the first time... this may take a minute.")
 
-        loader = PyPDFLoader("molsoncoors.pdf")
+        loader = PyPDFLoader(pdf_path)
         pages = loader.load()
 
         splitter = RecursiveCharacterTextSplitter(
@@ -68,11 +71,11 @@ def load_vectorstore():
         vectorstore = Chroma.from_documents(
             documents=chunks,
             embedding=embeddings,
-            persist_directory="./chroma_db"
+            persist_directory=chroma_path
         )
     else:
         vectorstore = Chroma(
-            persist_directory="./chroma_db",
+            persist_directory=chroma_path,
             embedding_function=embeddings
         )
 
