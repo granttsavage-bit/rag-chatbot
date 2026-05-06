@@ -14,6 +14,33 @@ st.set_page_config(
     layout="centered"
 )
 
+# Sidebar
+with st.sidebar:
+    st.title("About This App")
+    st.markdown("""
+    This chatbot answers questions about the **Molson Coors 2023 Annual Report (10-K)** 
+    filed with the SEC on February 20, 2024.
+    
+    **How it works:**
+    - Document is split into 716 chunks
+    - Each chunk is stored as a vector embedding in ChromaDB
+    - Your question is matched to the most relevant chunks
+    - GPT-3.5 synthesizes an answer from those chunks
+    
+    **Tech Stack:**
+    - Python
+    - LangChain
+    - OpenAI API
+    - ChromaDB
+    - Streamlit
+    
+    **Built by:** Grant Savage
+    """)
+    st.divider()
+    if st.button("Clear Chat History"):
+        st.session_state.messages = []
+        st.rerun()
+
 st.title("🍺 Molson Coors 10-K Chatbot")
 st.caption("Ask any question about the Molson Coors 2023 Annual Report")
 
@@ -52,15 +79,15 @@ llm = ChatOpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
 
-def format_docs(docs):
-    return "\n\n".join(doc.page_content for doc in docs)
-
 def ask(question):
-    context = format_docs(retriever.invoke(question))
-    return (prompt | llm | StrOutputParser()).invoke({
+    docs = retriever.invoke(question)
+    context = "\n\n".join(doc.page_content for doc in docs)
+    answer = (prompt | llm | StrOutputParser()).invoke({
         "context": context,
         "question": question
     })
+    sources = sorted(set([doc.metadata.get("page", 0) + 1 for doc in docs]))
+    return answer, sources
 
 # Initialize chat history
 if "messages" not in st.session_state:
@@ -70,6 +97,8 @@ if "messages" not in st.session_state:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+        if message["role"] == "assistant" and "sources" in message:
+            st.info(f"📄 Sources: Pages {', '.join(map(str, message['sources']))}")
 
 # Chat input
 if question := st.chat_input("Ask a question about the 10-K..."):
@@ -79,7 +108,12 @@ if question := st.chat_input("Ask a question about the 10-K..."):
 
     with st.chat_message("assistant"):
         with st.spinner("Searching the document..."):
-            answer = ask(question)
+            answer, sources = ask(question)
         st.markdown(answer)
+        st.info(f"📄 Sources: Pages {', '.join(map(str, sources))}")
 
-    st.session_state.messages.append({"role": "assistant", "content": answer})
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": answer,
+        "sources": sources
+    })
