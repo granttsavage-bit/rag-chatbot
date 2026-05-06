@@ -4,9 +4,13 @@ from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_chroma import Chroma
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 import os
 
 load_dotenv()
+if "OPENAI_API_KEY" in st.secrets:
+    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 
 st.set_page_config(
     page_title="Molson Coors 10-K Chatbot",
@@ -44,14 +48,34 @@ with st.sidebar:
 st.title("🍺 Molson Coors 10-K Chatbot")
 st.caption("Ask any question about the Molson Coors 2023 Annual Report")
 
-# Load vectorstore
+# Load or build vectorstore
 @st.cache_resource
 def load_vectorstore():
     embeddings = OpenAIEmbeddings(api_key=os.getenv("OPENAI_API_KEY"))
-    vectorstore = Chroma(
-        persist_directory="./chroma_db",
-        embedding_function=embeddings
-    )
+
+    if not os.path.exists("./chroma_db"):
+        st.info("Building knowledge base for the first time... this may take a minute.")
+
+        loader = PyPDFLoader("molsoncoors.pdf")
+        pages = loader.load()
+
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200
+        )
+        chunks = splitter.split_documents(pages)
+
+        vectorstore = Chroma.from_documents(
+            documents=chunks,
+            embedding=embeddings,
+            persist_directory="./chroma_db"
+        )
+    else:
+        vectorstore = Chroma(
+            persist_directory="./chroma_db",
+            embedding_function=embeddings
+        )
+
     return vectorstore.as_retriever(search_kwargs={"k": 7})
 
 retriever = load_vectorstore()
